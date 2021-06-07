@@ -1,0 +1,783 @@
+---
+title: "Appendix"
+author: "Abraham Hussein, Thomas Wunsch, Abraham Matur Achuil, Simran Bhattarai"
+date: "April 14, 2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(survival)
+library(KMsurv)
+library(ggplot2)
+library(knitr)
+```
+
+## R Packages Used  
+  
+* survival
+* knitr
+* ggplot2
+* KMsurv
+  
+  
+# A.
+
+## A.1 - Data Structuring
+
+```{r}
+data(pbc)
+workdata<-pbc[complete.cases(pbc),] #Picking complete cases
+attach(workdata)
+nstatus <- rep(0,nrow(workdata))
+nstatus <- ifelse(workdata$status==2,1,nstatus)
+```
+
+## A.2 - Backwards AIC Model
+```{r Dummy Chunky, include=FALSE}
+(fit.AIC<-coxph(Surv(workdata$time, nstatus)~age+log(bili)+log(albumin)+factor(edema)+ast+
+log(protime)+ascites+hepato+spiders+chol
++alk.phos+platelet+trt))
+BAIC<-step(fit.AIC, direction = "backward")
+summary(BAIC)
+```
+```{r}
+fit.AIC<-coxph(Surv(workdata$time, nstatus)~age+log(bili)+log(albumin)+factor(edema)+ast+log(protime)+ascites+hepato+spiders+chol+alk.phos+platelet+trt)
+# BAIC<-step(fit.AIC, direction = "backward")
+summary(BAIC)
+```
+
+## A.3 - Forwards P-value Model
+```{r,include=FALSE}
+#Function for the local test for possible confounders, adjusted for  risk groups;
+#coxph.fit is the object from coxph() and df is the df of the confounders;
+
+coxph.localtest<-function(coxph.fit, df){
+  coef<-coxph.fit$coef
+  var<-coxph.fit$var
+  loglik<-coxph.fit$loglik[2]
+  p<-length(coef)
+  AIC<- -2*loglik+2*p    #Using the formula on p.277;
+  var.mat<-solve(as.matrix(var[(p-df+1):p, (p-df+1):p]))
+  coe.mat<-matrix(c(coef[(p-df+1):p]), df, 1)
+  WaldChiSq<-t(coe.mat)%*%var.mat%*%coe.mat
+  pvalue<-1-pchisq(WaldChiSq,df)
+  results<-c(df, WaldChiSq, pvalue, AIC)
+  list(results)
+}
+
+
+#P-value forward selection approach:
+Table1<-matrix(0,13,4)
+colnames(Table1)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table1)<-c("Age", "Log(Bili)","Log(Albm)","Edema","Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Orignal Models:
+Table1.Age <-coxph(Surv(workdata$time, nstatus)~age, workdata)
+Table1.Bili <-coxph(Surv(workdata$time, nstatus)~log(bili), workdata)
+Table1.Albm <-coxph(Surv(workdata$time, nstatus)~log(albumin), workdata)
+Table1.Edema<-coxph(Surv(workdata$time, nstatus)~factor(edema), workdata)
+
+#Our Covariates:
+Table1.Ast<-coxph(Surv(workdata$time, nstatus)~ast, workdata)
+Table1.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime), workdata)
+Table1.Asc<-coxph(Surv(workdata$time, nstatus)~ascites, workdata)
+Table1.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato, workdata)
+Table1.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders, workdata)
+Table1.Chol<-coxph(Surv(workdata$time, nstatus)~chol, workdata)
+Table1.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos, workdata)
+Table1.Plate<-coxph(Surv(workdata$time, nstatus)~platelet, workdata)
+Table1.Trt<-coxph(Surv(workdata$time, nstatus)~trt, workdata)
+
+
+#Compiling 1st table:
+Table1[1,]<-c(coxph.localtest(Table1.Age, df=1)[[1]])
+Table1[2,]<-c(coxph.localtest(Table1.Bili, df=1)[[1]])
+Table1[3,]<-c(coxph.localtest(Table1.Albm, df=1)[[1]])
+Table1[4,]<-c(coxph.localtest(Table1.Edema, df=2)[[1]])
+
+Table1[5,]<-c(coxph.localtest(Table1.Ast, df=1)[[1]])
+Table1[6,]<-c(coxph.localtest(Table1.Pro, df=1)[[1]])
+
+Table1[7,]<-c(coxph.localtest(Table1.Asc, df=1)[[1]])
+Table1[8,]<-c(coxph.localtest(Table1.Hepto, df=1)[[1]])
+Table1[9,]<-c(coxph.localtest(Table1.Spiders, df=1)[[1]])
+Table1[10,]<-c(coxph.localtest(Table1.Chol, df=1)[[1]])
+Table1[11,]<-c(coxph.localtest(Table1.Alk, df=1)[[1]])
+Table1[12,]<-c(coxph.localtest(Table1.Plate, df=1)[[1]])
+Table1[13,]<-c(coxph.localtest(Table1.Trt, df=1)[[1]])
+```
+ 
+```{r,include=FALSE}
+#P-value forward selection approach:
+Table2<-matrix(0,12,4)
+colnames(Table2)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table2)<-c("Age","Log(Albm)","Edema","Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+X=log(bili)
+
+#Orignal Models:
+Table2.Age <-coxph(Surv(workdata$time, nstatus)~age+log(bili), workdata)
+Table2.Albm <-coxph(Surv(workdata$time, nstatus)~log(albumin)+log(bili), workdata)
+Table2.Edema<-coxph(Surv(workdata$time, nstatus)~factor(edema)+log(bili), workdata)
+
+#Our Covariates:
+Table2.Ast<-coxph(Surv(workdata$time, nstatus)~ast+log(bili), workdata)
+Table2.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili), workdata)
+Table2.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili), workdata)
+Table2.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili), workdata)
+Table2.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili), workdata)
+Table2.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili), workdata)
+Table2.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili), workdata)
+Table2.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili), workdata)
+Table2.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili), workdata)
+
+#Compiling 2nd table:
+Table2[1,]<-c(coxph.localtest(Table2.Age, df=1)[[1]])
+Table2[2,]<-c(coxph.localtest(Table2.Albm, df=1)[[1]])
+Table2[3,]<-c(coxph.localtest(Table2.Edema, df=2)[[1]])
+
+Table2[4,]<-c(coxph.localtest(Table2.Ast, df=1)[[1]])
+Table2[5,]<-c(coxph.localtest(Table2.Pro, df=1)[[1]])
+
+Table2[6,]<-c(coxph.localtest(Table2.Asc, df=1)[[1]])
+Table2[7,]<-c(coxph.localtest(Table2.Hepto, df=1)[[1]])
+Table2[8,]<-c(coxph.localtest(Table2.Spiders, df=1)[[1]])
+Table2[9,]<-c(coxph.localtest(Table2.Chol, df=1)[[1]])
+Table2[10,]<-c(coxph.localtest(Table2.Alk, df=1)[[1]])
+Table2[11,]<-c(coxph.localtest(Table2.Plate, df=1)[[1]])
+Table2[12,]<-c(coxph.localtest(Table2.Trt, df=1)[[1]])
+```
+
+  
+```{r,include=FALSE}
+#P-value forward selection approach:
+Table3<-matrix(0,11,4)
+colnames(Table3)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table3)<-c("Age","Edema","Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+X=log(bili)+log(albumin)
+
+#Orignal Models:
+Table3.Age <-coxph(Surv(workdata$time, nstatus)~age+log(bili)+log(albumin), workdata)
+Table3.Edema<-coxph(Surv(workdata$time, nstatus)~factor(edema)+log(bili)+log(albumin), workdata)
+
+#Our Covariates:
+Table3.Ast<-coxph(Surv(workdata$time, nstatus)~ast+log(bili)+log(albumin), workdata)
+Table3.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili)+log(albumin), workdata)
+Table3.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili)+log(albumin), workdata)
+Table3.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili)+log(albumin), workdata)
+Table3.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili)+log(albumin), workdata)
+Table3.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili)+log(albumin), workdata)
+Table3.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili)+log(albumin), workdata)
+Table3.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili)+log(albumin), workdata)
+Table3.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili)+log(albumin), workdata)
+
+#Compiling 3rd table:
+Table3[1,]<-c(coxph.localtest(Table3.Age, df=1)[[1]])
+Table3[2,]<-c(coxph.localtest(Table3.Edema, df=2)[[1]])
+
+Table3[3,]<-c(coxph.localtest(Table3.Ast, df=1)[[1]])
+Table3[4,]<-c(coxph.localtest(Table3.Pro, df=1)[[1]])
+
+Table3[5,]<-c(coxph.localtest(Table3.Asc, df=1)[[1]])
+Table3[6,]<-c(coxph.localtest(Table3.Hepto, df=1)[[1]])
+Table3[7,]<-c(coxph.localtest(Table3.Spiders, df=1)[[1]])
+Table3[8,]<-c(coxph.localtest(Table3.Chol, df=1)[[1]])
+Table3[9,]<-c(coxph.localtest(Table3.Alk, df=1)[[1]])
+Table3[10,]<-c(coxph.localtest(Table3.Plate, df=1)[[1]])
+Table3[11,]<-c(coxph.localtest(Table3.Trt, df=1)[[1]])
+
+```
+
+  
+```{r,include=FALSE}
+#P-value forward selection approach:
+Table4<-matrix(0,10,4)
+colnames(Table4)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table4)<-c("Age","Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+X=log(bili)+log(albumin)+factor(edema)
+
+#Orignal Models:
+Table4.Age <-coxph(Surv(workdata$time, nstatus)~age+log(bili)+log(albumin)+factor(edema), workdata)
+
+#Our Covariates:
+Table4.Ast<-coxph(Surv(workdata$time, nstatus)~ast+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili)+log(albumin)+factor(edema), workdata)
+
+#Compiling 4th table:
+Table4[1,]<-c(coxph.localtest(Table4.Age, df=1)[[1]])
+
+Table4[2,]<-c(coxph.localtest(Table4.Ast, df=1)[[1]])
+Table4[3,]<-c(coxph.localtest(Table4.Pro, df=1)[[1]])
+
+Table4[4,]<-c(coxph.localtest(Table4.Asc, df=1)[[1]])
+Table4[5,]<-c(coxph.localtest(Table4.Hepto, df=1)[[1]])
+Table4[6,]<-c(coxph.localtest(Table4.Spiders, df=1)[[1]])
+Table4[7,]<-c(coxph.localtest(Table4.Chol, df=1)[[1]])
+Table4[8,]<-c(coxph.localtest(Table4.Alk, df=1)[[1]])
+Table4[9,]<-c(coxph.localtest(Table4.Plate, df=1)[[1]])
+Table4[10,]<-c(coxph.localtest(Table4.Trt, df=1)[[1]])
+
+```
+
+```{r,include=FALSE}
+#P-value forward selection approach:
+Table5<-matrix(0,9,4)
+colnames(Table5)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table5)<-c("Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+# log(bili)+log(albumin)+factor(edema)+age
+
+#Orignal Models:
+Table5.Age <-coxph(Surv(workdata$time, nstatus)~age+log(bili)+log(albumin)+factor(edema)
+, workdata)
+
+#Our New Covariates:
+Table5.Ast<-coxph(Surv(workdata$time, nstatus)~ast+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+
+#Ones to be disposed of:
+Table5.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+
+#Compiling 5th table:
+Table5[1,]<-c(coxph.localtest(Table5.Ast, df=1)[[1]])
+Table5[2,]<-c(coxph.localtest(Table5.Pro, df=1)[[1]])
+
+Table5[3,]<-c(coxph.localtest(Table5.Asc, df=1)[[1]])
+Table5[4,]<-c(coxph.localtest(Table5.Hepto, df=1)[[1]])
+Table5[5,]<-c(coxph.localtest(Table5.Spiders, df=1)[[1]])
+Table5[6,]<-c(coxph.localtest(Table5.Chol, df=1)[[1]])
+Table5[7,]<-c(coxph.localtest(Table5.Alk, df=1)[[1]])
+Table5[8,]<-c(coxph.localtest(Table5.Plate, df=1)[[1]])
+Table5[9,]<-c(coxph.localtest(Table5.Trt, df=1)[[1]])
+
+```
+
+```{r,include=FALSE}
+#P-value forward selection approach:
+Table6<-matrix(0,8,4)
+colnames(Table6)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table6)<-c("Asc","Log(Protime)","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+# log(bili)+log(albumin)+factor(edema)+age+ast
+
+#Our Covariates:
+Table6.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+
+#Compiling 5th table:
+Table6[1,]<-c(coxph.localtest(Table6.Asc, df=1)[[1]])
+Table6[2,]<-c(coxph.localtest(Table6.Pro, df=1)[[1]])
+Table6[3,]<-c(coxph.localtest(Table6.Hepto, df=1)[[1]])
+Table6[4,]<-c(coxph.localtest(Table6.Spiders, df=1)[[1]])
+Table6[5,]<-c(coxph.localtest(Table6.Chol, df=1)[[1]])
+Table6[6,]<-c(coxph.localtest(Table6.Alk, df=1)[[1]])
+Table6[7,]<-c(coxph.localtest(Table6.Plate, df=1)[[1]])
+Table6[8,]<-c(coxph.localtest(Table6.Trt, df=1)[[1]])
+
+```
+
+
+```{r,echo=FALSE}
+cat("Table 1: Local test for possible confounders", "\n")
+kable(Table1)
+```
+```{r,echo=FALSE}
+cat("Table 2: Local test for possible confounders, adjusted for Log(bili) ", "\n")
+kable(Table2)
+``` 
+```{r,echo=FALSE}
+cat("Table 3: Local test for possible confounders, adjusted for Log(bili) and Log(Albumin) ", "\n")
+kable(Table3)
+``` 
+```{r,echo=FALSE}
+cat("Table 4: Local test for possible confounders, adjusted for Log(bili), Log(Albumin), and Edema ", "\n")
+kable(Table4)
+```  
+```{r,echo=FALSE}
+cat("Table 5: Local test for possible confounders, adjusted for age, Log(bili), Log(Albumin), and Edema ", "\n")
+kable(Table5)
+```
+```{r,echo=FALSE}
+cat("Table 6: Local test for possible confounders, adjusted for aspartate aminotransferase, age, \n Log(bili), Log(Albumin), and Edema ", "\n")
+kable(Table6)
+```
+
+
+```{r}
+#Function for the local test for possible confounders, adjusted for  risk groups;
+#coxph.fit is the object from coxph() and df is the df of the confounders;
+
+coxph.localtest<-function(coxph.fit, df){
+  coef<-coxph.fit$coef
+  var<-coxph.fit$var
+  loglik<-coxph.fit$loglik[2]
+  p<-length(coef)
+  AIC<- -2*loglik+2*p    #Using the formula on p.277;
+  var.mat<-solve(as.matrix(var[(p-df+1):p, (p-df+1):p]))
+  coe.mat<-matrix(c(coef[(p-df+1):p]), df, 1)
+  WaldChiSq<-t(coe.mat)%*%var.mat%*%coe.mat
+  pvalue<-1-pchisq(WaldChiSq,df)
+  results<-c(df, WaldChiSq, pvalue, AIC)
+  list(results)
+}
+
+
+#P-value forward selection approach:
+Table1<-matrix(0,13,4)
+colnames(Table1)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table1)<-c("Age", "Log(Bili)","Log(Albm)","Edema","Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Orignal Models:
+Table1.Age <-coxph(Surv(workdata$time, nstatus)~age, workdata)
+Table1.Bili <-coxph(Surv(workdata$time, nstatus)~log(bili), workdata)
+Table1.Albm <-coxph(Surv(workdata$time, nstatus)~log(albumin), workdata)
+Table1.Edema<-coxph(Surv(workdata$time, nstatus)~factor(edema), workdata)
+
+#Our Covariates:
+Table1.Ast<-coxph(Surv(workdata$time, nstatus)~ast, workdata)
+Table1.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime), workdata)
+Table1.Asc<-coxph(Surv(workdata$time, nstatus)~ascites, workdata)
+Table1.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato, workdata)
+Table1.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders, workdata)
+Table1.Chol<-coxph(Surv(workdata$time, nstatus)~chol, workdata)
+Table1.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos, workdata)
+Table1.Plate<-coxph(Surv(workdata$time, nstatus)~platelet, workdata)
+Table1.Trt<-coxph(Surv(workdata$time, nstatus)~trt, workdata)
+
+
+#Compiling 1st table:
+Table1[1,]<-c(coxph.localtest(Table1.Age, df=1)[[1]])
+Table1[2,]<-c(coxph.localtest(Table1.Bili, df=1)[[1]])
+Table1[3,]<-c(coxph.localtest(Table1.Albm, df=1)[[1]])
+Table1[4,]<-c(coxph.localtest(Table1.Edema, df=2)[[1]])
+
+Table1[5,]<-c(coxph.localtest(Table1.Ast, df=1)[[1]])
+Table1[6,]<-c(coxph.localtest(Table1.Pro, df=1)[[1]])
+
+Table1[7,]<-c(coxph.localtest(Table1.Asc, df=1)[[1]])
+Table1[8,]<-c(coxph.localtest(Table1.Hepto, df=1)[[1]])
+Table1[9,]<-c(coxph.localtest(Table1.Spiders, df=1)[[1]])
+Table1[10,]<-c(coxph.localtest(Table1.Chol, df=1)[[1]])
+Table1[11,]<-c(coxph.localtest(Table1.Alk, df=1)[[1]])
+Table1[12,]<-c(coxph.localtest(Table1.Plate, df=1)[[1]])
+Table1[13,]<-c(coxph.localtest(Table1.Trt, df=1)[[1]])
+```
+ 
+```{r}
+#P-value forward selection approach:
+Table2<-matrix(0,12,4)
+colnames(Table2)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table2)<-c("Age","Log(Albm)","Edema","Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+X=log(bili)
+
+#Orignal Models:
+Table2.Age <-coxph(Surv(workdata$time, nstatus)~age+log(bili), workdata)
+Table2.Albm <-coxph(Surv(workdata$time, nstatus)~log(albumin)+log(bili), workdata)
+Table2.Edema<-coxph(Surv(workdata$time, nstatus)~factor(edema)+log(bili), workdata)
+
+#Our Covariates:
+Table2.Ast<-coxph(Surv(workdata$time, nstatus)~ast+log(bili), workdata)
+Table2.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili), workdata)
+Table2.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili), workdata)
+Table2.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili), workdata)
+Table2.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili), workdata)
+Table2.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili), workdata)
+Table2.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili), workdata)
+Table2.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili), workdata)
+Table2.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili), workdata)
+
+#Compiling 2nd table:
+Table2[1,]<-c(coxph.localtest(Table2.Age, df=1)[[1]])
+Table2[2,]<-c(coxph.localtest(Table2.Albm, df=1)[[1]])
+Table2[3,]<-c(coxph.localtest(Table2.Edema, df=2)[[1]])
+
+Table2[4,]<-c(coxph.localtest(Table2.Ast, df=1)[[1]])
+Table2[5,]<-c(coxph.localtest(Table2.Pro, df=1)[[1]])
+
+Table2[6,]<-c(coxph.localtest(Table2.Asc, df=1)[[1]])
+Table2[7,]<-c(coxph.localtest(Table2.Hepto, df=1)[[1]])
+Table2[8,]<-c(coxph.localtest(Table2.Spiders, df=1)[[1]])
+Table2[9,]<-c(coxph.localtest(Table2.Chol, df=1)[[1]])
+Table2[10,]<-c(coxph.localtest(Table2.Alk, df=1)[[1]])
+Table2[11,]<-c(coxph.localtest(Table2.Plate, df=1)[[1]])
+Table2[12,]<-c(coxph.localtest(Table2.Trt, df=1)[[1]])
+```
+
+  
+```{r}
+#P-value forward selection approach:
+Table3<-matrix(0,11,4)
+colnames(Table3)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table3)<-c("Age","Edema","Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+X=log(bili)+log(albumin)
+
+#Orignal Models:
+Table3.Age <-coxph(Surv(workdata$time, nstatus)~age+log(bili)+log(albumin), workdata)
+Table3.Edema<-coxph(Surv(workdata$time, nstatus)~factor(edema)+log(bili)+log(albumin), workdata)
+
+#Our Covariates:
+Table3.Ast<-coxph(Surv(workdata$time, nstatus)~ast+log(bili)+log(albumin), workdata)
+Table3.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili)+log(albumin), workdata)
+Table3.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili)+log(albumin), workdata)
+Table3.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili)+log(albumin), workdata)
+Table3.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili)+log(albumin), workdata)
+Table3.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili)+log(albumin), workdata)
+Table3.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili)+log(albumin), workdata)
+Table3.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili)+log(albumin), workdata)
+Table3.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili)+log(albumin), workdata)
+
+#Compiling 3rd table:
+Table3[1,]<-c(coxph.localtest(Table3.Age, df=1)[[1]])
+Table3[2,]<-c(coxph.localtest(Table3.Edema, df=2)[[1]])
+
+Table3[3,]<-c(coxph.localtest(Table3.Ast, df=1)[[1]])
+Table3[4,]<-c(coxph.localtest(Table3.Pro, df=1)[[1]])
+
+Table3[5,]<-c(coxph.localtest(Table3.Asc, df=1)[[1]])
+Table3[6,]<-c(coxph.localtest(Table3.Hepto, df=1)[[1]])
+Table3[7,]<-c(coxph.localtest(Table3.Spiders, df=1)[[1]])
+Table3[8,]<-c(coxph.localtest(Table3.Chol, df=1)[[1]])
+Table3[9,]<-c(coxph.localtest(Table3.Alk, df=1)[[1]])
+Table3[10,]<-c(coxph.localtest(Table3.Plate, df=1)[[1]])
+Table3[11,]<-c(coxph.localtest(Table3.Trt, df=1)[[1]])
+
+```
+
+  
+```{r}
+#P-value forward selection approach:
+Table4<-matrix(0,10,4)
+colnames(Table4)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table4)<-c("Age","Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+X=log(bili)+log(albumin)+factor(edema)
+
+#Orignal Models:
+Table4.Age <-coxph(Surv(workdata$time, nstatus)~age+log(bili)+log(albumin)+factor(edema), workdata)
+
+#Our Covariates:
+Table4.Ast<-coxph(Surv(workdata$time, nstatus)~ast+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili)+log(albumin)+factor(edema), workdata)
+Table4.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili)+log(albumin)+factor(edema), workdata)
+
+#Compiling 4th table:
+Table4[1,]<-c(coxph.localtest(Table4.Age, df=1)[[1]])
+Table4[2,]<-c(coxph.localtest(Table4.Ast, df=1)[[1]])
+Table4[3,]<-c(coxph.localtest(Table4.Pro, df=1)[[1]])
+Table4[4,]<-c(coxph.localtest(Table4.Asc, df=1)[[1]])
+Table4[5,]<-c(coxph.localtest(Table4.Hepto, df=1)[[1]])
+Table4[6,]<-c(coxph.localtest(Table4.Spiders, df=1)[[1]])
+Table4[7,]<-c(coxph.localtest(Table4.Chol, df=1)[[1]])
+Table4[8,]<-c(coxph.localtest(Table4.Alk, df=1)[[1]])
+Table4[9,]<-c(coxph.localtest(Table4.Plate, df=1)[[1]])
+Table4[10,]<-c(coxph.localtest(Table4.Trt, df=1)[[1]])
+
+```
+
+```{r}
+#P-value forward selection approach:
+Table5<-matrix(0,9,4)
+colnames(Table5)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table5)<-c("Ast","Log(Protime)","Asc","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+# log(bili)+log(albumin)+factor(edema)+age
+
+#Orignal Models:
+Table5.Age <-coxph(Surv(workdata$time, nstatus)~age+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Ast<-coxph(Surv(workdata$time, nstatus)~ast+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+Table5.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili)+log(albumin)+factor(edema)+age
+, workdata)
+
+#Compiling 5th table:
+Table5[1,]<-c(coxph.localtest(Table5.Ast, df=1)[[1]])
+Table5[2,]<-c(coxph.localtest(Table5.Pro, df=1)[[1]])
+
+Table5[3,]<-c(coxph.localtest(Table5.Asc, df=1)[[1]])
+Table5[4,]<-c(coxph.localtest(Table5.Hepto, df=1)[[1]])
+Table5[5,]<-c(coxph.localtest(Table5.Spiders, df=1)[[1]])
+Table5[6,]<-c(coxph.localtest(Table5.Chol, df=1)[[1]])
+Table5[7,]<-c(coxph.localtest(Table5.Alk, df=1)[[1]])
+Table5[8,]<-c(coxph.localtest(Table5.Plate, df=1)[[1]])
+Table5[9,]<-c(coxph.localtest(Table5.Trt, df=1)[[1]])
+
+```
+
+```{r}
+#P-value forward selection approach:
+Table6<-matrix(0,8,4)
+colnames(Table6)<-c("df","Wald's Test Stat", "p-Value", "AIC")
+rownames(Table6)<-c("Asc","Log(Protime)","Hepto","Spiders","Chol","Alk","Plate","Treatment")
+
+#Additive Covariates (for memory):
+# log(bili)+log(albumin)+factor(edema)+age+ast
+
+#Our Covariates:
+Table6.Asc<-coxph(Surv(workdata$time, nstatus)~ascites+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Pro <-coxph(Surv(workdata$time, nstatus)~log(protime)+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Hepto<-coxph(Surv(workdata$time, nstatus)~hepato+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Spiders<-coxph(Surv(workdata$time, nstatus)~spiders+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Chol<-coxph(Surv(workdata$time, nstatus)~chol+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Alk<-coxph(Surv(workdata$time, nstatus)~alk.phos+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Plate<-coxph(Surv(workdata$time, nstatus)~platelet+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+Table6.Trt<-coxph(Surv(workdata$time, nstatus)~trt+log(bili)+log(albumin)+factor(edema)+age+ast
+, workdata)
+
+#Compiling 6th table:
+Table6[1,]<-c(coxph.localtest(Table6.Asc, df=1)[[1]])
+Table6[2,]<-c(coxph.localtest(Table6.Pro, df=1)[[1]])
+Table6[3,]<-c(coxph.localtest(Table6.Hepto, df=1)[[1]])
+Table6[4,]<-c(coxph.localtest(Table6.Spiders, df=1)[[1]])
+Table6[5,]<-c(coxph.localtest(Table6.Chol, df=1)[[1]])
+Table6[6,]<-c(coxph.localtest(Table6.Alk, df=1)[[1]])
+Table6[7,]<-c(coxph.localtest(Table6.Plate, df=1)[[1]])
+Table6[8,]<-c(coxph.localtest(Table6.Trt, df=1)[[1]])
+```
+  
+# B.
+
+## B.1 - Cox-Snell
+```{r}
+PVALMODEL <- coxph(formula = Surv(workdata$time, nstatus) ~ age + factor(edema) + 
+                    log(bili) + log(albumin) + ast, data = workdata)
+cox.snell.residuals = nstatus - residuals(PVALMODEL, type= "martingale")
+cs.surv.p = survfit(Surv(cox.snell.residuals,nstatus)~1,data=workdata,type="kaplan-meier")
+
+
+AICMODEL <- coxph(formula = Surv(workdata$time, nstatus) ~ age + edema + 
+        log(bili) + log(albumin) + log(protime), data = workdata)
+cox.snell.residuals = nstatus - residuals(AICMODEL, type= "martingale")
+cs.surv = survfit(Surv(cox.snell.residuals,nstatus)~1,data=workdata,type="kaplan-meier")
+
+  par(mfrow=c(1,2))
+plot(cs.surv.p$time, -log(cs.surv.p$surv), main = "Pvalue Cox Snell")
+lines(c(0,3),c(0,3))
+plot(cs.surv$time, -log(cs.surv$surv), main = "Backwards AIC Cox Snell")
+lines(c(0,3),c(0,3))
+```
+## B.2 Backward AIC Survival Times
+```{r}
+plot(0,0, xlim=c(0,4000), ylim=c(0,1), xlab=" Time (Days)",
+     ylab="Survival probability", pch=" ", main = "Backward AIC Model Survival Times")
+lines(survfit(AICMODEL), lty=1, col = c("black", "turquoise", "coral"))
+```
+
+## B.3 - Cross-validation
+```{r}
+#This  R code will cross validate our model with the survival 
+#curve for the 106 individuals whom did not enter the original drug trial
+#Developed by Thomas Wunsch
+
+d2l<-pbc
+workdata<-pbc[complete.cases(pbc),]
+
+nstatus <- rep(0,nrow(workdata))
+workdata$status <- ifelse(workdata$status==2,1,nstatus)
+
+m1 <- coxph(Surv(time,status)~bili+protime+albumin+factor(edema)+age, data = workdata)
+
+Km_model<-survfit(Surv(workdata$time,workdata$status)~1)
+
+### Function gives survival probability 
+surv_prob<-function(time){
+  i = 1
+  value = FALSE
+  while (value == FALSE){
+    if (time < Km_model$time[1]){
+      prob = 1
+      value = TRUE
+    }else if(Km_model$time[length(Km_model$time)]<= time) {
+      prob = Km_model$surv[length(Km_model$surv)]
+      value=TRUE
+    }else if((Km_model$time[i]<= time)&&(time < Km_model$time[i+1])){
+      prob = Km_model$surv[i]
+      value= TRUE
+    }else{
+      i = i+1
+    }
+  }
+  prob
+}
+
+Cross_val_pbc<- subset(pbc,id>312)
+nstatus <- rep(0,nrow(Cross_val_pbc))
+Cross_val_pbc$status <- ifelse(Cross_val_pbc$status==2,1,nstatus)
+fit<-coxph(Surv(Cross_val_pbc$time, Cross_val_pbc$status)~1)
+Km_cross<-survfit(Surv(Cross_val_pbc$time,Cross_val_pbc$status)~1)
+cross_prob<-function(time){
+  i = 1
+  value = FALSE
+  while (value == FALSE){
+    if (time < Km_cross$time[1]){
+      prob = 1
+      value = TRUE
+    }else if(Km_cross$time[length(Km_cross$time)]<= time) {
+      prob = Km_cross$surv[length(Km_cross$surv)]
+      value=TRUE
+    }else if((Km_cross$time[i]<= time)&&(time < Km_cross$time[i+1])){
+      prob = Km_cross$surv[i]
+      value= TRUE
+    }else{
+      i = i+1
+    }
+  }
+  prob
+}
+
+
+
+Risk_score<- function(age,bili,albumin,protime,edema){
+  R <- 0.0336*age +0.868*log(bili)-2.805*log(albumin)+2.59*log(protime)
+  if (edema == 0.5){
+    R<- R+0.152}
+  else if (edema == 1){
+    R<- R+0.939}
+  R
+}
+
+
+Risk <- c()
+for (i in 1:length(Cross_val_pbc$status)){
+  a= Risk_score(Cross_val_pbc$age[i],Cross_val_pbc$bili[i],Cross_val_pbc$albumin[i],Cross_val_pbc$protime[i],Cross_val_pbc$edema[i])
+  Risk <-c(Risk,a)  }
+names(Risk)<- c("Risk")
+total_data<-cbind(Cross_val_pbc,Risk)
+total_data<-total_data[complete.cases(total_data$Risk),]
+
+mean(total_data$Risk)#average risk score for the cross validation data
+  
+ 
+predicted_surv <- function(R,time){
+  pred<- surv_prob(time)^(exp(R-4.9))
+  pred
+}
+prediction <- c()
+for (i in 1:length(Cross_val_pbc$time)){
+  R = Risk_score(Cross_val_pbc$age[i],Cross_val_pbc$bili[i],Cross_val_pbc$albumin[i],Cross_val_pbc$protime[i],Cross_val_pbc$edema[i])
+  pred = predicted_surv(R,Cross_val_pbc$time[i])
+  prediction <- c(prediction,pred)
+}
+
+t0=0
+time = seq(0,5000)
+sse = 0
+p<- c()
+a<- c()
+for (i in time){
+  p <- c(p,predicted_surv(4.97,i)) 
+  a =  c(a,cross_prob(i))
+  se = (predicted_surv(4.97,i)- cross_prob(i))^2
+  sse = se+sse}
+  
+msse = sse/5000
+msse#value of the average mean square error for our predicted vs actual model
+
+plot(survfit(Surv(Cross_val_pbc$time,Cross_val_pbc$status)~1), xlab ="Time",ylab="Survival Probability",main= "Cross Validation of Model")
+
+lines(time[0:5000],p[0:5000], col = "red")
+legend(200,0.4,legend = c("Observed","Predicted"),col= c("black","red"),lty = 1,cex=0.8)
+
+q<-c()
+for (i in Cross_val_pbc$time){
+    val <- p[i]
+    q<-c(q,val)}
+
+
+survdiff(Surv(Cross_val_pbc$time,Cross_val_pbc$status)~offset(q))
+```
+
+
+
+## B.4 - Printing Tables
+```{r}
+#Forward P-value Model
+sink("PVAl.txt")
+print(summary(PVALMODEL))
+sink() 
+
+#Backward AIC Model
+sink("BAIC.txt")
+print(summary(AICMODEL))
+sink() 
+```
+
